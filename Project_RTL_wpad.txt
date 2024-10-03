@@ -1,0 +1,310 @@
+module toll_booth_wpad(PAD_clk, PAD_rst, PAD_vehicle, PAD_note, PAD_gate);
+input [1:0]PAD_vehicle;
+input [2:0]PAD_note;
+input PAD_rst;
+input PAD_clk;
+output PAD_gate;
+
+wire [1:0]wire_vehicle;
+wire [2:0]wire_note;
+wire wire_gate;
+wire wire_clk;
+wire wire_rst;
+
+toll_booth tollbooth_submodule(wire_vehicle,wire_note,wire_gate,wire_clk,wire_rst);
+
+
+PADDI padvehicle1 (.PAD(PAD_vehicle[1]), .Y(wire_vehicle[1]));
+PADDI padvehicle0 (.PAD(PAD_vehicle[0]), .Y(wire_vehicle[0]));
+PADDI padnote2 (.PAD(PAD_note[2]), .Y(wire_note[2]));
+PADDI padnote1 (.PAD(PAD_note[1]), .Y(wire_note[1]));
+PADDI padnote0 (.PAD(PAD_note[0]), .Y(wire_note[0]));
+
+PADDO pad_gate (.PAD(PAD_gate), .A(wire_gate));
+
+PADDI pad_clk (.PAD(PAD_clk), .Y(wire_clk));
+PADDI pad_rst (.PAD(PAD_rst), .Y(wire_rst));
+endmodule
+
+
+module toll_booth(
+    input  clk,
+    input  rst,
+    input  [1:0] vehicle, // 00: Private Car, 01: Large Car, 10: Bus/Truck, 11: Bike
+    input  [2:0] note,    // 000: no note, 001: 10 BDT, 010: 20 BDT, 011: 50 BDT, 100: 100 BDT
+    output reg gate
+);
+    reg [4:0] state, next_state;
+    
+    // State encoding
+    parameter NO_VEHICLE = 5'b00000, 
+              PRIVATE_0 = 5'b00001, 
+              PRIVATE_10 = 5'b00010, 
+              PRIVATE_20 = 5'b00011, 
+              PRIVATE_30 = 5'b00100, 
+              PRIVATE_40 = 5'b00101, 
+              PRIVATE_50_PLUS = 5'b00110, 
+
+              LARGE_0 = 5'b00111, 
+              LARGE_10 = 5'b01000, 
+              LARGE_20 = 5'b01001, 
+              LARGE_30 = 5'b01010, 
+              LARGE_40 = 5'b01011, 
+              LARGE_50 = 5'b01100, 
+              LARGE_60 = 5'b01101, 
+              LARGE_70 = 5'b01110, 
+              LARGE_80_PLUS = 5'b01111, 
+
+              BUS_0 = 5'b10000, 
+              BUS_10 = 5'b10001, 
+              BUS_20 = 5'b10010, 
+              BUS_30 = 5'b10011, 
+              BUS_40 = 5'b10100, 
+              BUS_50 = 5'b10101, 
+              BUS_60 = 5'b10110, 
+              BUS_70 = 5'b10111, 
+              BUS_80 = 5'b11000, 
+              BUS_90 = 5'b11001, 
+              BUS_100_PLUS = 5'b11010, 
+              
+              BIKE_0 = 5'b11011, 
+              BIKE_10 = 5'b11100, 
+              BIKE_20 = 5'b11101, 
+              BIKE_30_PLUS = 5'b11110;
+
+    // State transition logic
+    always @(posedge clk or posedge rst) begin
+        if (rst)
+            state <= NO_VEHICLE;
+        else
+            state <= next_state;
+    end
+
+    // Next state logic
+    always @(*) begin
+        case (state)
+            NO_VEHICLE: 
+                case (vehicle)
+                    2'b00: next_state = PRIVATE_0;
+                    2'b01: next_state = LARGE_0;
+                    2'b10: next_state = BUS_0;
+                    2'b11: next_state = BIKE_0;
+                    default: next_state = NO_VEHICLE;
+                endcase
+
+            // Private Car States
+            PRIVATE_0: 
+                case (note)
+                    3'b001: next_state = PRIVATE_10;
+                    3'b010: next_state = PRIVATE_20;
+                    3'b011, 3'b100: next_state = PRIVATE_50_PLUS;
+                    default: next_state = PRIVATE_0;
+                endcase
+            PRIVATE_10: 
+                case (note)
+                    3'b001: next_state = PRIVATE_20;
+                    3'b010: next_state = PRIVATE_30;
+                    3'b011, 3'b100: next_state = PRIVATE_50_PLUS;
+                    default: next_state = PRIVATE_10;
+                endcase
+            PRIVATE_20: 
+                case (note)
+                    3'b001: next_state = PRIVATE_30;
+                    3'b010: next_state = PRIVATE_40;
+                    3'b011, 3'b100: next_state = PRIVATE_50_PLUS;
+                    default: next_state = PRIVATE_20;
+                endcase
+            PRIVATE_30: 
+                case (note)
+                    3'b001: next_state = PRIVATE_40;
+                    3'b010, 3'b011, 3'b100: next_state = PRIVATE_50_PLUS;
+                    default: next_state = PRIVATE_30;
+                endcase
+            PRIVATE_40: 
+                case (note)
+                    3'b001, 3'b010, 3'b011, 3'b100: next_state = PRIVATE_50_PLUS;
+                    default: next_state = PRIVATE_40;
+                endcase
+            PRIVATE_50_PLUS: 
+                next_state = (vehicle == 2'b00) ? NO_VEHICLE : PRIVATE_50_PLUS;
+
+            // Large Car States
+            LARGE_0: 
+                case (note)
+                    3'b001: next_state = LARGE_10;
+                    3'b010: next_state = LARGE_20;
+                    3'b011: next_state = LARGE_50;
+                    3'b100: next_state = LARGE_80_PLUS;
+                    default: next_state = LARGE_0;
+                endcase
+            LARGE_10: 
+                case (note)
+                    3'b001: next_state = LARGE_20;
+                    3'b010: next_state = LARGE_30;
+                    3'b011: next_state = LARGE_60;
+                    3'b100: next_state = LARGE_80_PLUS;
+                    default: next_state = LARGE_10;
+                endcase
+            LARGE_20: 
+                case (note)
+                    3'b001: next_state = LARGE_30;
+                    3'b010: next_state = LARGE_40;
+                    3'b011: next_state = LARGE_70;
+                    3'b100: next_state = LARGE_80_PLUS;
+                    default: next_state = LARGE_20;
+                endcase
+            LARGE_30: 
+                case (note)
+                    3'b001: next_state = LARGE_40;
+                    3'b010: next_state = LARGE_50;
+                    3'b011: next_state = LARGE_80_PLUS;
+                    3'b100: next_state = LARGE_80_PLUS;
+                    default: next_state = LARGE_30;
+                endcase
+            LARGE_40: 
+                case (note)
+                    3'b001: next_state = LARGE_50;
+                    3'b010: next_state = LARGE_60;
+                    3'b011: next_state = LARGE_80_PLUS;
+                    3'b100: next_state = LARGE_80_PLUS;
+                    default: next_state = LARGE_40;
+                endcase
+            LARGE_50: 
+                case (note)
+                    3'b001: next_state = LARGE_60;
+                    3'b010: next_state = LARGE_70;
+                    3'b011, 3'b100: next_state = LARGE_80_PLUS;
+                    default: next_state = LARGE_50;
+                endcase
+            LARGE_60: 
+                case (note)
+                    3'b001: next_state = LARGE_70;
+                    3'b010: next_state = LARGE_80_PLUS;
+                    3'b011, 3'b100: next_state = LARGE_80_PLUS;
+                    default: next_state = LARGE_60;
+                endcase
+            LARGE_70: 
+                case (note)
+                    3'b001: next_state = LARGE_80_PLUS;
+                    3'b010: next_state = LARGE_80_PLUS;
+                    3'b011, 3'b100: next_state = LARGE_80_PLUS;
+                    default: next_state = LARGE_70;
+                endcase
+            LARGE_80_PLUS: 
+                next_state = (vehicle == 2'b01) ? NO_VEHICLE : LARGE_80_PLUS;
+
+            // Bus/Truck States
+            BUS_0: 
+                case (note)
+                    3'b001: next_state = BUS_10;
+                    3'b010: next_state = BUS_20;
+                    3'b011: next_state = BUS_50;
+                    3'b100: next_state = BUS_100_PLUS;
+                    default: next_state = BUS_0;
+                endcase
+            BUS_10: 
+                case (note)
+                    3'b001: next_state = BUS_20;
+                    3'b010: next_state = BUS_30;
+                    3'b011: next_state = BUS_60;
+                    3'b100: next_state = BUS_100_PLUS;
+                    default: next_state = BUS_10;
+                endcase
+            BUS_20: 
+                case (note)
+                    3'b001: next_state = BUS_30;
+                    3'b010: next_state = BUS_40;
+                    3'b011: next_state = BUS_70;
+                    3'b100: next_state = BUS_100_PLUS;
+                    default: next_state = BUS_20;
+                endcase
+            BUS_30: 
+                case (note)
+                    3'b001: next_state = BUS_40;
+                    3'b010: next_state = BUS_50;
+                    3'b011: next_state = BUS_80;
+                    3'b100: next_state = BUS_100_PLUS;
+                    default: next_state = BUS_30;
+                endcase
+            BUS_40: 
+                case (note)
+                    3'b001: next_state = BUS_50;
+                    3'b010: next_state = BUS_60;
+                    3'b011: next_state = BUS_90;
+                    3'b100: next_state = BUS_100_PLUS;
+                    default: next_state = BUS_40;
+                endcase
+            BUS_50: 
+                case (note)
+                    3'b001: next_state = BUS_60;
+                    3'b010: next_state = BUS_70;
+                    3'b011: next_state = BUS_100_PLUS;
+                    3'b100: next_state = BUS_100_PLUS;
+                    default: next_state = BUS_50;
+                endcase
+            BUS_60: 
+                case (note)
+                    3'b001: next_state = BUS_70;
+                    3'b010: next_state = BUS_80;
+                    3'b011: next_state = BUS_100_PLUS;
+                    3'b100: next_state = BUS_100_PLUS;
+                    default: next_state = BUS_60;
+                endcase
+            BUS_70: 
+                case (note)
+                    3'b001: next_state = BUS_80;
+                    3'b010: next_state = BUS_90;
+                    3'b011: next_state = BUS_100_PLUS;
+                    3'b100: next_state = BUS_100_PLUS;
+                    default: next_state = BUS_70;
+                endcase
+            BUS_80: 
+                case (note)
+                    3'b001: next_state = BUS_90;
+                    3'b010: next_state = BUS_100_PLUS;
+                    3'b011: next_state = BUS_100_PLUS;
+                    3'b100: next_state = BUS_100_PLUS;
+                    default: next_state = BUS_80;
+                endcase
+            BUS_90: 
+                case (note)
+                    3'b001, 3'b010, 3'b011, 3'b100: next_state = BUS_100_PLUS;
+                    default: next_state = BUS_90;
+                endcase
+            BUS_100_PLUS: 
+                next_state = (vehicle == 2'b10) ? NO_VEHICLE : BUS_100_PLUS;
+
+            // Bike States
+            BIKE_0: 
+                case (note)
+                    3'b001: next_state = BIKE_10;
+                    3'b010: next_state = BIKE_20;
+                    3'b011, 3'b100: next_state = BIKE_30_PLUS;
+                    default: next_state = BIKE_0;
+                endcase
+            BIKE_10: 
+                case (note)
+                    3'b001: next_state = BIKE_20;
+                    3'b010, 3'b011, 3'b100: next_state = BIKE_30_PLUS;
+                    default: next_state = BIKE_10;
+                endcase
+            BIKE_20: 
+                case (note)
+                    3'b001, 3'b010, 3'b011, 3'b100: next_state = BIKE_30_PLUS;
+                    default: next_state = BIKE_20;
+                endcase
+            BIKE_30_PLUS: 
+                next_state = (vehicle == 2'b11) ? NO_VEHICLE : BIKE_30_PLUS;
+            
+            default: next_state = NO_VEHICLE;
+        endcase
+    end
+
+    // Output logic
+    always @(state) begin
+        case (state)
+            PRIVATE_50_PLUS, LARGE_80_PLUS, BUS_100_PLUS, BIKE_30_PLUS: gate = 1'b1;
+            default: gate = 1'b0;
+        endcase
+    end
+endmodule

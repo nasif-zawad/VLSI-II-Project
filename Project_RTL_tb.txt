@@ -1,0 +1,82 @@
+`timescale 1ns / 1ps
+
+module toll_booth_tb;
+
+// Inputs
+reg clk;
+reg rst;
+reg [1:0] vehicle;
+reg [2:0] note;
+
+// Outputs
+wire gate;
+
+// Instantiate the Unit Under Test (UUT)
+toll_booth uut (
+    .clk(clk), 
+    .rst(rst), 
+    .vehicle(vehicle), 
+    .note(note), 
+    .gate(gate)
+);
+
+initial begin
+    // Initialize Inputs
+    clk = 0;
+    rst = 0;
+    vehicle = 2'b00;
+    note = 3'b000;
+
+    // Reset the system
+    rst = 1;
+    #10;
+    rst = 0;
+    #10;
+
+    // Test for Private Car
+    vehicle = 2'b00;
+    note = 3'b000; // 00 BDT
+    #10;
+    note = 3'b001; // 10 BDT
+    #10;
+    note = 3'b001; // 10 BDT
+    #10;
+    note = 3'b001; // 10 BDT
+    #10;
+    note = 3'b010; // 20 BDT
+    #10;
+  
+    // Test for Large Car
+    vehicle = 2'b01;
+    note = 3'b000; // 00 BDT
+    #10;
+    note = 3'b001; // 10 BDT
+    #10;
+    note = 3'b010; // 20 BDT
+    #10;
+    note = 3'b011; // 50 BDT
+    #10;
+    
+    // Test for Bus/Truck
+    vehicle = 2'b10;
+    note = 3'b000; // 00 BDT
+    #10;
+    note = 3'b100; // 100 BDT
+    #10;
+
+    // Test for Bike
+    vehicle = 2'b11;
+    note = 3'b000; // 00 BDT
+    #10;
+    note = 3'b001; // 10 BDT
+    #10;
+    note = 3'b010; // 20 BDT
+    #10;
+   
+    // Finish simulation
+    $finish;
+end
+
+always #5 clk = ~clk;
+
+endmodule

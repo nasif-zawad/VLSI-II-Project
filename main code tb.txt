@@ -1,0 +1,60 @@
+module toll_booth_tb;
+    // Inputs
+    reg clk;
+    reg rst;
+    reg [1:0] vehicle;
+    reg [2:0] note;
+
+    // Output
+    wire gate;
+
+    // Instantiate the toll_booth module
+    toll_booth uut (
+        .clk(clk),
+        .rst(rst),
+        .vehicle(vehicle),
+        .note(note),
+        .gate(gate)
+    );
+
+    // Clock generation with 50% duty cycle for simplicity
+    initial begin
+        clk = 0;
+        forever #10 clk = ~clk;
+    end
+
+    initial begin
+        // Initialize Inputs
+        rst = 1;
+        vehicle = 2'b00;
+        note = 3'b000;
+
+        // Reset the system
+        #10 rst = 0;
+
+        // Bus Arrival Sequence
+        #20 vehicle = 2'b10; // Bus
+        note = 3'b000; // No Money inserted
+        #20 note = 3'b010; // 20 BDT note
+        #20 note = 3'b011; // 50 BDT note
+        #20 note = 3'b010; // 20 BDT note
+        #20 note = 3'b001; // 10 BDT note
+
+        // Private Car Arrival Sequence
+        #20 vehicle = 2'b00; // Private Car
+        note = 3'b000; // No Money inserted
+        #20 note = 3'b001; // 10 BDT note
+        #20 note = 3'b001; // 10 BDT note
+        #20 note = 3'b010; // 20 BDT note
+        #20 note = 3'b001; // 10 BDT note
+
+        // End simulation
+        #100 $finish;
+    end
+
+    initial begin
+        // Monitor the outputs
+        $monitor("Time: %0t | clk: %b | rst: %b | vehicle: %b | note: %b | gate: %b", 
+                 $time, clk, rst, vehicle, note, gate);
+    end
+endmodule
